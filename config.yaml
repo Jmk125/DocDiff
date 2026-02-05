@@ -1,0 +1,64 @@
+flags:
+  Controls_BAS:
+    - "BAS"
+    - "BMS"
+    - "BACnet"
+    - "points list"
+    - "trending"
+    - "integration"
+    - "metering"
+    - "submeter"
+    - "energy meter"
+    - "power monitoring"
+  Commissioning_TAB:
+    - "commissioning"
+    - "Cx"
+    - "functional test"
+    - "TAB"
+    - "testing adjusting balancing"
+    - "startup"
+  Testing_Inspections:
+    - "special inspection"
+    - "testing agency"
+    - "field test"
+    - "mockup"
+    - "inspection"
+  Fire_Life_Safety:
+    - "firestop"
+    - "fire stopping"
+    - "rated"
+    - "UL system"
+    - "fire alarm"
+    - "smoke control"
+  Security_AV_IT:
+    - "access control"
+    - "camera"
+    - "CCTV"
+    - "intercom"
+    - "structured cabling"
+    - "data cabling"
+  Owner_Docs_Training:
+    - "O&M"
+    - "operation and maintenance"
+    - "training"
+    - "attic stock"
+    - "warranty"
+
+sheet_id_patterns:
+  # Typical sheet IDs like A-101, M601, E-2.01, FP-101, etc.
+  - "\\b[A-Z]{1,3}[- ]?\\d{1,4}(?:\\.\\d{1,3})?\\b"
+  - "\\b(?:FP|FA|EP|MP|PL|EL|ME|AE)[- ]?\\d{1,4}(?:\\.\\d{1,3})?\\b"
+
+spec_section_patterns:
+  # SECTION 26 09 23, SECTION 09 29 00, etc.
+  - "\\bSECTION\\s+(\\d{2}\\s+\\d{2}\\s+\\d{2})\\b"
+  - "\\b(\\d{2}\\s+\\d{2}\\s+\\d{2})\\b"
+
+diff:
+  max_changes_per_sheet: 200
+  max_snippet_chars: 700
+  note_bullet_min_len: 12
+
+excel:
+  freeze_panes: true
+  auto_filter: true
