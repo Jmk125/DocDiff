@@ -5,6 +5,7 @@ import os
 import tkinter as tk
 from tkinter import filedialog
 
+import httpx
 from openai import OpenAI
 import streamlit as st
 
@@ -14,6 +15,13 @@ from docdiff.export_excel import write_workbook
 
 
 st.set_page_config(page_title="DocDiff UI", layout="wide")
+
+
+def make_openai_client(api_key: str | None) -> OpenAI:
+    return OpenAI(
+        api_key=api_key or os.getenv("OPENAI_API_KEY"),
+        http_client=httpx.Client(trust_env=False),
+    )
 
 
 def pick_directory(default_path: str) -> str:
@@ -204,7 +212,7 @@ if st.session_state.get("results_ready"):
     max_items = st.number_input("Max changes to review", min_value=1, max_value=200, value=50, step=1)
 
     def _ai_review_row(row) -> dict:
-        client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+        client = make_openai_client(api_key)
         prompt = (
             "You are an estimator assistant. Rate significance 1-5 and give a short rationale. "
             "Respond as JSON with keys score (int 1-5) and rationale (string).\n\n"
@@ -260,7 +268,7 @@ if st.session_state.get("results_ready"):
             st.error("No API key provided. Set OPENAI_API_KEY or paste a key above.")
         else:
             with st.spinner("Running AI scan across documents..."):
-                client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+                client = make_openai_client(api_key)
                 ai_config = AiConfig(
                     model=scan_model,
                     max_items=int(scan_max_pages),
