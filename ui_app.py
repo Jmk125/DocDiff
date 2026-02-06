@@ -1,10 +1,13 @@
+import io
+import logging
 import os
 import tkinter as tk
 from tkinter import filedialog
 
 import streamlit as st
 
-from docdiff.cli import run
+from docdiff.cli import build_results, load_config
+from docdiff.export_excel import write_workbook
 
 
 st.set_page_config(page_title="DocDiff UI", layout="wide")
@@ -52,6 +55,11 @@ DEFAULTS = {
     "addenda_path": "./input/ADDENDA",
     "config_path": "./config.yaml",
     "output_path": "./output/changes.xlsx",
+    "results_ready": False,
+    "changes": [],
+    "inventory": [],
+    "matches": [],
+    "log_output": "",
 }
 
 for key, default in DEFAULTS.items():
@@ -113,22 +121,79 @@ with st.sidebar:
 
 st.subheader("Run")
 if st.button("Run Diff"):
-    args = [
-        "--gmp", st.session_state["gmp_path"],
-        "--bid", st.session_state["bid_path"],
-        "--out", st.session_state["output_path"],
-        "--config", st.session_state["config_path"],
-        "--log-level", log_level,
-    ]
+    sets = {
+        "GMP": st.session_state["gmp_path"],
+        "BID": st.session_state["bid_path"],
+    }
     if st.session_state["addenda_path"]:
-        args.extend(["--addenda", st.session_state["addenda_path"]])
+        sets["ADDENDA"] = st.session_state["addenda_path"]
     with st.spinner("Running docdiff..."):
         try:
-            run(args)
-            st.success(f"Finished. Output written to {st.session_state['output_path']}")
+            handler = logging.StreamHandler(stream=io.StringIO())
+            formatter = logging.Formatter("%(levelname)s %(name)s: %(message)s")
+            handler.setFormatter(formatter)
+            root_logger = logging.getLogger()
+            root_logger.addHandler(handler)
+            root_logger.setLevel(getattr(logging, log_level, logging.INFO))
+
+            config = load_config(st.session_state["config_path"])
+            changes, inventory, matches = build_results(config, sets)
+
+            handler.flush()
+            log_stream = handler.stream.getvalue()
+            root_logger.removeHandler(handler)
+
+            st.session_state["changes"] = changes
+            st.session_state["inventory"] = inventory
+            st.session_state["matches"] = matches
+            st.session_state["log_output"] = log_stream
+            st.session_state["results_ready"] = True
+
+            st.success("Finished processing. Review results below or export to Excel.")
         except SystemExit as exc:
             if exc.code:
                 st.error(f"Run failed with exit code {exc.code}")
+        except Exception as exc:
+            st.exception(exc)
+
+st.subheader("Console Output")
+st.text_area("Logs", value=st.session_state.get("log_output", ""), height=200)
+
+if st.session_state.get("results_ready"):
+    st.subheader("Preview Results")
+    st.write(
+        f"Changes: {len(st.session_state['changes'])} | "
+        f"Inventory: {len(st.session_state['inventory'])} | "
+        f"Matches: {len(st.session_state['matches'])}"
+    )
+
+    change_rows = [
+        {
+            "Change_ID": row.change_id,
+            "Set_From": row.set_from,
+            "Set_To": row.set_to,
+            "Discipline": row.discipline,
+            "Doc_Type": row.doc_type,
+            "Reference": row.reference,
+            "Change_Type": row.change_type,
+            "Change_Summary": row.change_summary,
+            "Confidence": row.confidence,
+            "Impact_Score": row.impact_score,
+            "Impact_Rationale": row.impact_rationale,
+        }
+        for row in st.session_state["changes"]
+    ]
+    st.dataframe(change_rows, use_container_width=True, height=400)
+
+    if st.button("Export to Excel"):
+        try:
+            write_workbook(
+                st.session_state["output_path"],
+                st.session_state["changes"],
+                st.session_state["inventory"],
+                st.session_state["matches"],
+            )
+            st.success(f"Exported to {st.session_state['output_path']}")
         except Exception as exc:
             st.exception(exc)
 
@@ -138,5 +203,6 @@ st.markdown(
 - The UI wraps the same CLI logic, so configuration changes in `config.yaml` still apply.
 - The PDF search is recursive: any PDFs in subfolders under the selected folder are included.
 - Paths are local to the machine running this app.
+- Results are held in memory for preview; export writes the Excel file on demand.
 """
 )

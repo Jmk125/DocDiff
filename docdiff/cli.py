@@ -140,21 +140,7 @@ def compare_sets(config: Config, set_from: DocSet, set_to: DocSet, matches: List
     return list(dedupe.values())
 
 
-def run(argv: Iterable[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Construction PDF set differ")
-    parser.add_argument("--set", action="append", help="Set input as NAME=PATH; can repeat")
-    parser.add_argument("--gmp", help="Legacy: GMP folder")
-    parser.add_argument("--bid", help="Legacy: BID folder")
-    parser.add_argument("--addenda", help="Legacy: ADDENDA folder")
-    parser.add_argument("--config", default="config.yaml")
-    parser.add_argument("--out", required=True)
-    parser.add_argument("--log-level", default="INFO")
-    args = parser.parse_args(list(argv) if argv else None)
-
-    logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO), format="%(levelname)s %(name)s: %(message)s")
-    config = load_config(args.config)
-    sets = parse_sets(args)
-
+def build_results(config: Config, sets: Dict[str, str]) -> Tuple[List[ChangeRow], List[ChangeRow], List[MatchResult]]:
     if "GMP" not in sets or "BID" not in sets:
         raise SystemExit("GMP and BID sets are required")
 
@@ -171,6 +157,26 @@ def run(argv: Iterable[str] | None = None) -> int:
         add_matches = match_pages(gmp, addenda, weight_cfg)
         changes.extend(compare_sets(config, gmp, addenda, add_matches))
         matches.extend(add_matches)
+
+    return changes, inventory, matches
+
+
+def run(argv: Iterable[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Construction PDF set differ")
+    parser.add_argument("--set", action="append", help="Set input as NAME=PATH; can repeat")
+    parser.add_argument("--gmp", help="Legacy: GMP folder")
+    parser.add_argument("--bid", help="Legacy: BID folder")
+    parser.add_argument("--addenda", help="Legacy: ADDENDA folder")
+    parser.add_argument("--config", default="config.yaml")
+    parser.add_argument("--out", required=True)
+    parser.add_argument("--log-level", default="INFO")
+    args = parser.parse_args(list(argv) if argv else None)
+
+    logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO), format="%(levelname)s %(name)s: %(message)s")
+    config = load_config(args.config)
+    sets = parse_sets(args)
+
+    changes, inventory, matches = build_results(config, sets)
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     write_workbook(args.out, changes, inventory, matches)
