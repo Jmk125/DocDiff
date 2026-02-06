@@ -1,9 +1,11 @@
 import io
+import json
 import logging
 import os
 import tkinter as tk
 from tkinter import filedialog
 
+from openai import OpenAI
 import streamlit as st
 
 from docdiff.cli import build_results, load_config
@@ -60,6 +62,7 @@ DEFAULTS = {
     "inventory": [],
     "matches": [],
     "log_output": "",
+    "ai_reviews": {},
 }
 
 for key, default in DEFAULTS.items():
@@ -180,10 +183,64 @@ if st.session_state.get("results_ready"):
             "Confidence": row.confidence,
             "Impact_Score": row.impact_score,
             "Impact_Rationale": row.impact_rationale,
+            "AI_Significance_1to5": st.session_state.get("ai_reviews", {}).get(row.change_id, {}).get("score", ""),
+            "AI_Rationale": st.session_state.get("ai_reviews", {}).get(row.change_id, {}).get("rationale", ""),
         }
         for row in st.session_state["changes"]
     ]
     st.dataframe(change_rows, use_container_width=True, height=400)
+
+    st.subheader("AI Review (optional)")
+    st.write("Generate AI-based significance scores and rationale before exporting.")
+    api_key = st.text_input(
+        "OpenAI API Key (optional, otherwise uses OPENAI_API_KEY env var)",
+        type="password",
+    )
+    model_name = st.text_input("Model", value="gpt-4o-mini")
+    max_items = st.number_input("Max changes to review", min_value=1, max_value=200, value=50, step=1)
+
+    def _ai_review_row(row) -> dict:
+        client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+        prompt = (
+            "You are an estimator assistant. Rate significance 1-5 and give a short rationale. "
+            "Respond as JSON with keys score (int 1-5) and rationale (string).\n\n"
+            f"Discipline: {row.discipline}\n"
+            f"Doc Type: {row.doc_type}\n"
+            f"Reference: {row.reference}\n"
+            f"Change Type: {row.change_type}\n"
+            f"Summary: {row.change_summary}\n"
+            f"Before: {row.before_snippet[:500]}\n"
+            f"After: {row.after_snippet[:500]}\n"
+        )
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        content = response.choices[0].message.content or "{}"
+        return json.loads(content)
+
+    if st.button("Run AI Review"):
+        if not (api_key or os.getenv("OPENAI_API_KEY")):
+            st.error("No API key provided. Set OPENAI_API_KEY or paste a key above.")
+        else:
+            with st.spinner("Running AI review..."):
+                sorted_changes = sorted(
+                    st.session_state["changes"],
+                    key=lambda c: (-c.impact_score, c.discipline, c.reference),
+                )
+                ai_results = {}
+                for row in sorted_changes[:max_items]:
+                    try:
+                        result = _ai_review_row(row)
+                        ai_results[row.change_id] = {
+                            "score": result.get("score", ""),
+                            "rationale": result.get("rationale", ""),
+                        }
+                    except Exception as exc:
+                        ai_results[row.change_id] = {"score": "", "rationale": f"AI error: {exc}"}
+                st.session_state["ai_reviews"] = ai_results
+                st.success("AI review complete. Preview table updated.")
 
     if st.button("Export to Excel"):
         try:
@@ -204,5 +261,6 @@ st.markdown(
 - The PDF search is recursive: any PDFs in subfolders under the selected folder are included.
 - Paths are local to the machine running this app.
 - Results are held in memory for preview; export writes the Excel file on demand.
+- AI review is optional and uses the OpenAI API if a key is provided.
 """
 )
