@@ -78,3 +78,14 @@ Notes:
 - If your corporate proxy blocks wheel downloads, either:
   - use Python 3.12 for this project, or
   - install Visual Studio Build Tools (C++ workload) and retry.
+
+
+### UI (Streamlit)
+
+You can run a simple UI wrapper using Streamlit:
+
+```bash
+streamlit run ui_app.py
+```
+
+This UI exposes the same inputs as the CLI and writes the Excel output to the configured path.
