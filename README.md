@@ -58,3 +58,23 @@ python docdiff.py --gmp ./input/GMP --bid ./input/BID --addenda ./input/ADDENDA 
 - `Sheets_Inventory`: added/removed sheets between GMP and BID.
 - `Matching`: match confidence and reasons.
 - `Spec_Inventory`, `Table_Diffs`: placeholders for expanded workflow.
+
+
+### Windows install troubleshooting (PyMuPDF)
+
+If installation fails on Python 3.13 with an error like `Unable to find Visual Studio`, pip is trying to build `pymupdf` from source.
+
+Use these steps:
+
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip setuptools wheel
+pip install --only-binary=:all: -r requirements.txt
+```
+
+Notes:
+- `requirements.txt` now uses a newer `pymupdf` range on Python 3.13+ to prefer available wheels.
+- If your corporate proxy blocks wheel downloads, either:
+  - use Python 3.12 for this project, or
+  - install Visual Studio Build Tools (C++ workload) and retry.
