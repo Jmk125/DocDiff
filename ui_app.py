@@ -8,6 +8,7 @@ from tkinter import filedialog
 from openai import OpenAI
 import streamlit as st
 
+from docdiff.ai import AiConfig, ai_scan_matches
 from docdiff.cli import build_results, load_config
 from docdiff.export_excel import write_workbook
 
@@ -63,6 +64,7 @@ DEFAULTS = {
     "matches": [],
     "log_output": "",
     "ai_reviews": {},
+    "ai_findings": [],
 }
 
 for key, default in DEFAULTS.items():
@@ -151,6 +153,8 @@ if st.button("Run Diff"):
             st.session_state["matches"] = matches
             st.session_state["log_output"] = log_stream
             st.session_state["results_ready"] = True
+            st.session_state["ai_reviews"] = {}
+            st.session_state["ai_findings"] = []
 
             st.success("Finished processing. Review results below or export to Excel.")
         except SystemExit as exc:
@@ -241,6 +245,31 @@ if st.session_state.get("results_ready"):
                         ai_results[row.change_id] = {"score": "", "rationale": f"AI error: {exc}"}
                 st.session_state["ai_reviews"] = ai_results
                 st.success("AI review complete. Preview table updated.")
+
+    st.subheader("AI Scan (include in diff)")
+    st.write("Run AI comparison across matched pages and append findings to the change list.")
+    scan_enabled = st.checkbox("Enable AI scan", value=False)
+    scan_model = st.text_input("AI scan model", value="gpt-4o-mini")
+    scan_max_pages = st.number_input("Max pages to scan", min_value=1, max_value=1000, value=200, step=10)
+    scan_max_chars = st.number_input("Max chars per page", min_value=500, max_value=6000, value=2000, step=250)
+
+    if st.button("Run AI Scan"):
+        if not scan_enabled:
+            st.warning("Enable AI scan to proceed.")
+        elif not (api_key or os.getenv("OPENAI_API_KEY")):
+            st.error("No API key provided. Set OPENAI_API_KEY or paste a key above.")
+        else:
+            with st.spinner("Running AI scan across documents..."):
+                client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+                ai_config = AiConfig(
+                    model=scan_model,
+                    max_items=int(scan_max_pages),
+                    max_chars=int(scan_max_chars),
+                )
+                ai_findings = ai_scan_matches(client, st.session_state["matches"], ai_config)
+                st.session_state["ai_findings"] = ai_findings
+                st.session_state["changes"] = st.session_state["changes"] + ai_findings
+                st.success(f"AI scan added {len(ai_findings)} findings to the change list.")
 
     if st.button("Export to Excel"):
         try:
