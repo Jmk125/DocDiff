@@ -1,5 +1,11 @@
-pymupdf==1.24.9
+# PyMuPDF 1.24.x often has no prebuilt wheels for Python 3.13 on Windows,
+# which forces a local C/C++ build (Visual Studio required).
+# Use newer wheels for 3.13+, keep v0.1-compatible pin for <=3.12.
+pymupdf==1.24.9; python_version < "3.13"
+pymupdf>=1.26.3,<1.27; python_version >= "3.13"
+
 pdfplumber==0.11.4
 openpyxl==3.1.5
 PyYAML==6.0.2
 rapidfuzz==3.9.6
+streamlit==1.39.0
